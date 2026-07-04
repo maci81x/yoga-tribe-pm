@@ -31,7 +31,7 @@ export default function ProjectView() {
   const { templates, getTasksForTemplate, getSubtasksForTemplateTask, applyTemplateToProject } = useTemplates()
 
   const [view, setView] = useState('kanban')
-  const [filters, setFilters] = useState({ stage: '', priority: '', assignee: '', due: '' })
+  const [filters, setFilters] = useState({ stage: '', priority: '', assignee: '', due: '', tag: '' })
   const [selectedTask, setSelectedTask] = useState(null)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [defaultStageId, setDefaultStageId] = useState(null)
@@ -46,6 +46,7 @@ export default function ProjectView() {
   const doneStageIds = new Set(stages.filter(s => s.is_done_stage).map(s => s.id))
   const progress = computeProgress(tasks, subtasks, doneStageIds)
 
+  const availableTags = [...new Set(tasks.map(t => t.tag).filter(Boolean))].sort()
   const filteredTasks = applyFilters(tasks, filters)
 
   const openNewTask = (stageId = null) => {
@@ -113,7 +114,7 @@ export default function ProjectView() {
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-        <FilterBar filters={filters} onChange={setFilters} people={people} stages={stages} />
+        <FilterBar filters={filters} onChange={setFilters} people={people} stages={stages} tags={availableTags} />
         <div className="flex items-center gap-1 ml-auto border border-edge rounded-lg p-0.5">
           <button
             onClick={() => setView('kanban')}

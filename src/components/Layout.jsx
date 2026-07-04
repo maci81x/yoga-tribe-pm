@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, BookTemplate, Search, X } from 'lucide-react'
+import { LayoutDashboard, Users, BookTemplate, Search, X, HelpCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useSaveState } from '../lib/saveTracker'
 import SearchResults from './SearchResults'
@@ -47,7 +47,7 @@ export default function Layout({ children }) {
     setResults(null)
     if (type === 'project') navigate(`/project/${item.id}`)
     if (type === 'task') navigate(`/project/${item.project_id}`)
-    if (type === 'person') navigate('/people')
+    if (type === 'person') navigate(`/person/${item.id}`)
   }
 
   const navClass = ({ isActive }) =>
@@ -60,8 +60,11 @@ export default function Layout({ children }) {
     <div className="min-h-screen bg-surface flex flex-col">
       <header className="bg-primary text-white sticky top-0 z-40 shadow-md">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
-          <NavLink to="/" className="font-bold text-base text-white whitespace-nowrap flex-shrink-0">
-            Yoga Tribe PM
+          <NavLink to="/" className="flex items-center gap-2 flex-shrink-0">
+            <div className="bg-white rounded-lg px-2 py-1 flex items-center">
+              <img src="/yoga-tribe-pm/logo.jpg" alt="Yoga Tribe" className="h-7 w-auto object-contain" />
+            </div>
+            <span className="text-white/80 text-xs font-semibold tracking-wider uppercase hidden sm:block">PM</span>
           </NavLink>
 
           <div className="flex-1 relative hidden sm:block max-w-sm" ref={searchRef}>
@@ -92,6 +95,9 @@ export default function Layout({ children }) {
             <NavLink to="/templates" className={navClass}>
               <BookTemplate size={15} /> Modelli
             </NavLink>
+            <NavLink to="/guide" className={navClass} title="Guida">
+              <HelpCircle size={15} />
+            </NavLink>
           </nav>
 
           <div className="ml-auto sm:ml-2 flex items-center gap-2">
@@ -114,6 +120,9 @@ export default function Layout({ children }) {
             </NavLink>
             <NavLink to="/templates" className={navClass} onClick={() => setMenuOpen(false)}>
               <BookTemplate size={15} /> Modelli
+            </NavLink>
+            <NavLink to="/guide" className={navClass} onClick={() => setMenuOpen(false)}>
+              <HelpCircle size={15} /> Guida
             </NavLink>
             <div className="relative mt-2 mb-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plus, UserX } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import PersonCard from './PersonCard'
@@ -32,6 +33,7 @@ function PersonModal({ open, onClose, person, onSave }) {
 
 export default function PeoplePage() {
   const { people, createPerson, updatePerson } = useApp()
+  const navigate = useNavigate()
   const [taskCounts, setTaskCounts] = useState({})
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -50,7 +52,7 @@ export default function PeoplePage() {
     else createPerson(form)
   }
 
-  const openEdit = (person) => { setEditing(person); setModalOpen(true) }
+  const openEdit = (person) => navigate(`/person/${person.id}`)
   const openNew = () => { setEditing(null); setModalOpen(true) }
 
   const activePeople = people.filter(p => p.active)

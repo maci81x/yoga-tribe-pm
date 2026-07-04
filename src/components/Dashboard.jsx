@@ -183,21 +183,32 @@ export default function Dashboard() {
           <div>
             <h2 className="text-sm font-semibold text-ink mb-3">Attività per persona</h2>
             <div className="bg-card rounded-xl border border-edge overflow-hidden">
-              {people.filter(p => p.active).map(person => {
-                const personTasks = openTasks.filter(t => t.assignee_id === person.id)
-                const overdueCount = personTasks.filter(t => t.due_date && t.due_date < today).length
-                const blockedCount = personTasks.filter(t => blockedStageIds.has(t.stage_id)).length
-                if (personTasks.length === 0) return null
-                return (
-                  <div key={person.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-edge last:border-0">
+              {people
+                .filter(p => p.active)
+                .map(person => ({
+                  person,
+                  personTasks: openTasks.filter(t => t.assignee_id === person.id),
+                  overdueCount: openTasks.filter(t => t.assignee_id === person.id && t.due_date && t.due_date < today).length,
+                  blockedCount: openTasks.filter(t => t.assignee_id === person.id && blockedStageIds.has(t.stage_id)).length,
+                }))
+                .sort((a, b) => b.personTasks.length - a.personTasks.length || a.person.name.localeCompare(b.person.name))
+                .map(({ person, personTasks, overdueCount, blockedCount }) => (
+                  <div
+                    key={person.id}
+                    onClick={() => navigate(`/person/${person.id}`)}
+                    className="flex items-center gap-3 px-4 py-2.5 border-b border-edge last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
                     <Avatar name={person.name} size="xs" />
-                    <span className="flex-1 text-xs text-ink truncate">{person.name}</span>
-                    <span className="text-xs text-dim">{personTasks.length}</span>
-                    {overdueCount > 0 && <span className="text-xs text-red-500">{overdueCount} scad.</span>}
-                    {blockedCount > 0 && <span className="text-xs text-amber-500">{blockedCount} blocc.</span>}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-ink truncate">{person.name}</div>
+                      {person.role && <div className="text-[10px] text-faint truncate">{person.role}</div>}
+                    </div>
+                    <span className="text-xs text-dim flex-shrink-0">{personTasks.length} att.</span>
+                    {overdueCount > 0 && <span className="text-xs text-red-500 flex-shrink-0">{overdueCount} scad.</span>}
+                    {blockedCount > 0 && <span className="text-xs text-amber-500 flex-shrink-0">{blockedCount} blocc.</span>}
                   </div>
-                )
-              })}
+                ))
+              }
             </div>
           </div>
         )}

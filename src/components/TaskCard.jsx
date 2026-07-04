@@ -50,6 +50,11 @@ export default function TaskCard({ task, subtasks, people, onClick }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <PriorityBadge priority={task.priority} />
           <DueDateChip date={task.due_date} />
+          {task.tag && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium truncate max-w-[120px]">
+              {task.tag}
+            </span>
+          )}
         </div>
 
         {taskSubs.length > 0 && (

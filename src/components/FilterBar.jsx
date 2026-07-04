@@ -8,8 +8,8 @@ const DUE_OPTIONS = [
   { value: 'none', label: 'Senza scadenza' },
 ]
 
-export default function FilterBar({ filters, onChange, people, stages }) {
-  const hasFilters = filters.assignee || filters.priority || filters.stage || filters.due
+export default function FilterBar({ filters, onChange, people, stages, tags = [] }) {
+  const hasFilters = filters.assignee || filters.priority || filters.stage || filters.due || filters.tag
 
   const set = (key, val) => onChange({ ...filters, [key]: val })
 
@@ -52,9 +52,20 @@ export default function FilterBar({ filters, onChange, people, stages }) {
         {DUE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
 
+      {tags.length > 0 && (
+        <select
+          value={filters.tag ?? ''}
+          onChange={e => set('tag', e.target.value)}
+          className="text-xs px-3 py-1.5 border border-edge rounded-lg bg-white text-dim focus:outline-none focus:border-accent"
+        >
+          <option value="">Tutti i tag</option>
+          {tags.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+      )}
+
       {hasFilters && (
         <button
-          onClick={() => onChange({ stage: '', priority: '', assignee: '', due: '' })}
+          onClick={() => onChange({ stage: '', priority: '', assignee: '', due: '', tag: '' })}
           className="flex items-center gap-1 text-xs text-accent hover:text-accent-hover px-2 py-1.5"
         >
           <X size={12} /> Rimuovi filtri
@@ -73,6 +84,7 @@ export function applyFilters(tasks, filters) {
     if (filters.stage && t.stage_id !== filters.stage) return false
     if (filters.priority && t.priority !== filters.priority) return false
     if (filters.assignee && t.assignee_id !== filters.assignee) return false
+    if (filters.tag && t.tag !== filters.tag) return false
     if (filters.due) {
       if (filters.due === 'overdue' && (!t.due_date || t.due_date >= today)) return false
       if (filters.due === '7' && (!t.due_date || t.due_date < today || t.due_date > in7.toISOString().split('T')[0])) return false
