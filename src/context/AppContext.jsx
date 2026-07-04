@@ -32,6 +32,17 @@ export function AppProvider({ children }) {
     return { data: row, error }
   }
 
+  const deletePerson = async (id, { reassignTo = null } = {}) => {
+    if (reassignTo) {
+      await supabase.from('yt_tasks').update({ assignee_id: reassignTo }).eq('assignee_id', id)
+    } else {
+      await supabase.from('yt_tasks').update({ assignee_id: null }).eq('assignee_id', id)
+    }
+    const { error } = await supabase.from('yt_people').delete().eq('id', id)
+    if (!error) setPeople(prev => prev.filter(p => p.id !== id))
+    return { error }
+  }
+
   const createStage = async (data) => {
     const { data: row, error } = await supabase.from('yt_stages').insert(data).select().single()
     if (!error) setStages(prev => [...prev, row].sort((a, b) => a.sort_order - b.sort_order))
@@ -60,7 +71,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       people, stages, loading,
-      createPerson, updatePerson,
+      createPerson, updatePerson, deletePerson,
       createStage, updateStage, deleteStage, reorderStages,
       reloadGlobal: loadGlobal,
     }}>

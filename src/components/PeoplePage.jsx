@@ -7,7 +7,6 @@ import PersonCard from './PersonCard'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 import Input from './ui/Input'
-import Avatar from './ui/Avatar'
 
 function PersonModal({ open, onClose, person, onSave }) {
   const [form, setForm] = useState({ name: '', role: '', email: '' })
@@ -31,12 +30,36 @@ function PersonModal({ open, onClose, person, onSave }) {
   )
 }
 
+function DeletePersonModal({ open, onClose, person, taskCount, onConfirm }) {
+  if (!person) return null
+  return (
+    <Modal open={open} onClose={onClose} title="Elimina persona" size="sm">
+      <div className="space-y-4">
+        <p className="text-sm text-ink">
+          Stai per eliminare <strong>{person.name}</strong>.
+          {taskCount > 0 && (
+            <> Ha <strong>{taskCount}</strong> {taskCount === 1 ? 'attività assegnata' : 'attività assegnate'}: l'assegnazione verrà rimossa.</>
+          )}
+        </p>
+        <div className="flex justify-end gap-2 pt-2 border-t border-edge">
+          <Button variant="ghost" onClick={onClose}>Annulla</Button>
+          <Button variant="danger" onClick={() => { onConfirm(); onClose() }}>
+            Elimina e rimuovi assegnazioni
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function PeoplePage() {
-  const { people, createPerson, updatePerson } = useApp()
+  const { people, createPerson, updatePerson, deletePerson } = useApp()
   const navigate = useNavigate()
   const [taskCounts, setTaskCounts] = useState({})
   const [modalOpen, setModalOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
     supabase.from('yt_tasks').select('assignee_id').then(({ data }) => {
@@ -52,8 +75,13 @@ export default function PeoplePage() {
     else createPerson(form)
   }
 
-  const openEdit = (person) => navigate(`/person/${person.id}`)
+  const openEdit = (person) => { setEditing(person); setModalOpen(true) }
+  const openDelete = (person) => { setDeleting(person); setDeleteOpen(true) }
   const openNew = () => { setEditing(null); setModalOpen(true) }
+
+  const handleDelete = async () => {
+    if (deleting) await deletePerson(deleting.id)
+  }
 
   const activePeople = people.filter(p => p.active)
   const inactivePeople = people.filter(p => !p.active)
@@ -69,7 +97,14 @@ export default function PeoplePage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {activePeople.map(p => (
-          <PersonCard key={p.id} person={p} taskCount={taskCounts[p.id] ?? 0} onClick={() => openEdit(p)} />
+          <PersonCard
+            key={p.id}
+            person={p}
+            taskCount={taskCounts[p.id] ?? 0}
+            onClick={() => navigate(`/person/${p.id}`)}
+            onEdit={() => openEdit(p)}
+            onDelete={() => openDelete(p)}
+          />
         ))}
       </div>
 
@@ -80,7 +115,14 @@ export default function PeoplePage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {inactivePeople.map(p => (
-              <PersonCard key={p.id} person={p} taskCount={0} onClick={() => openEdit(p)} />
+              <PersonCard
+                key={p.id}
+                person={p}
+                taskCount={0}
+                onClick={() => navigate(`/person/${p.id}`)}
+                onEdit={() => openEdit(p)}
+                onDelete={() => openDelete(p)}
+              />
             ))}
           </div>
         </div>
@@ -94,6 +136,13 @@ export default function PeoplePage() {
       )}
 
       <PersonModal open={modalOpen} onClose={() => setModalOpen(false)} person={editing} onSave={handleSave} />
+      <DeletePersonModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        person={deleting}
+        taskCount={deleting ? (taskCounts[deleting.id] ?? 0) : 0}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ChevronRight, ArrowLeft } from 'lucide-react'
+import { ChevronRight, Check, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { useProjects } from '../hooks/useProjects'
@@ -10,10 +10,51 @@ import ProgressBar from './ui/ProgressBar'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 
+function InlineEdit({ value, onSave, className = '', placeholder = '' }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+
+  useEffect(() => { setVal(value) }, [value])
+
+  const save = async () => {
+    if (val.trim() !== value) await onSave(val.trim())
+    setEditing(false)
+  }
+
+  const cancel = () => { setVal(value); setEditing(false) }
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input
+          autoFocus
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+          className={`border-b border-accent focus:outline-none bg-transparent ${className}`}
+          placeholder={placeholder}
+        />
+        <button onClick={save} className="text-accent hover:text-accent p-0.5"><Check size={13} /></button>
+        <button onClick={cancel} className="text-faint hover:text-dim p-0.5"><X size={13} /></button>
+      </span>
+    )
+  }
+
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      className={`cursor-text hover:underline decoration-dashed underline-offset-2 ${className}`}
+      title="Clicca per modificare"
+    >
+      {value || <span className="text-faint italic">{placeholder}</span>}
+    </span>
+  )
+}
+
 export default function PersonView() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { people, stages } = useApp()
+  const { people, stages, updatePerson } = useApp()
   const { projects } = useProjects()
   const [tasks, setTasks] = useState([])
   const [subtasks, setSubtasks] = useState([])
@@ -21,19 +62,19 @@ export default function PersonView() {
 
   const person = people.find(p => p.id === id)
 
-  useEffect(() => {
+  const loadTasks = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    supabase.from('yt_tasks').select('*').eq('assignee_id', id).order('due_date', { nullsFirst: false })
-      .then(async ({ data: t }) => {
-        setTasks(t ?? [])
-        if (t && t.length > 0) {
-          const { data: s } = await supabase.from('yt_subtasks').select('*').in('task_id', t.map(r => r.id))
-          setSubtasks(s ?? [])
-        }
-        setLoading(false)
-      })
+    const { data: t } = await supabase.from('yt_tasks').select('*').eq('assignee_id', id).order('due_date', { nullsFirst: false })
+    setTasks(t ?? [])
+    if (t && t.length > 0) {
+      const { data: s } = await supabase.from('yt_subtasks').select('*').in('task_id', t.map(r => r.id))
+      setSubtasks(s ?? [])
+    }
+    setLoading(false)
   }, [id])
+
+  useEffect(() => { loadTasks() }, [loadTasks])
 
   if (!person) return (
     <div className="text-faint text-center py-16">Persona non trovata</div>
@@ -44,13 +85,22 @@ export default function PersonView() {
   const openTasks = tasks.filter(t => !doneStageIds.has(t.stage_id))
   const overdueTasks = openTasks.filter(t => t.due_date && t.due_date < today)
 
-  // Raggruppa per progetto
   const byProject = projects
     .map(proj => ({
       project: proj,
       tasks: tasks.filter(t => t.project_id === proj.id),
     }))
     .filter(g => g.tasks.length > 0)
+
+  const removeAssignment = async (taskId) => {
+    await supabase.from('yt_tasks').update({ assignee_id: null }).eq('id', taskId)
+    setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  const reassignTask = async (taskId, newPersonId) => {
+    await supabase.from('yt_tasks').update({ assignee_id: newPersonId || null }).eq('id', taskId)
+    setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
 
   return (
     <div>
@@ -63,8 +113,22 @@ export default function PersonView() {
       <div className="flex items-center gap-4 mb-6 bg-card rounded-xl border border-edge p-5">
         <Avatar name={person.name} size="lg" />
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-ink">{person.name}</h1>
-          {person.role && <p className="text-sm text-faint">{person.role}</p>}
+          <h1 className="text-xl font-bold text-ink">
+            <InlineEdit
+              value={person.name}
+              onSave={v => updatePerson(person.id, { name: v })}
+              className="text-xl font-bold"
+              placeholder="Nome"
+            />
+          </h1>
+          <p className="text-sm text-faint mt-0.5">
+            <InlineEdit
+              value={person.role ?? ''}
+              onSave={v => updatePerson(person.id, { role: v })}
+              className="text-sm text-faint"
+              placeholder="Aggiungi ruolo..."
+            />
+          </p>
           {person.email && <p className="text-xs text-faint mt-0.5">{person.email}</p>}
         </div>
         <div className="flex gap-6 text-center">
@@ -108,16 +172,13 @@ export default function PersonView() {
                   const overdue = task.due_date && task.due_date < today && !stage?.is_done_stage
 
                   return (
-                    <div
-                      key={task.id}
-                      onClick={() => navigate(`/project/${project.id}`)}
-                      className="flex items-center gap-3 px-4 py-3 border-b border-edge last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
+                    <div key={task.id} className="flex items-center gap-3 px-4 py-3 border-b border-edge last:border-0 hover:bg-gray-50 transition-colors">
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => navigate(`/project/${project.id}`)}
+                      >
                         <div className="text-sm font-medium text-ink truncate">{task.title}</div>
-                        {task.tag && (
-                          <span className="text-[10px] text-faint">{task.tag}</span>
-                        )}
+                        {task.tag && <span className="text-[10px] text-faint">{task.tag}</span>}
                       </div>
                       {taskSubs.length > 0 && (
                         <div className="w-16 flex-shrink-0">
@@ -132,6 +193,19 @@ export default function PersonView() {
                           {format(new Date(task.due_date + 'T00:00:00'), 'd MMM', { locale: it })}
                         </span>
                       )}
+                      <select
+                        value=""
+                        onChange={e => e.target.value === '__remove__' ? removeAssignment(task.id) : reassignTask(task.id, e.target.value)}
+                        className="text-xs border border-edge rounded px-1.5 py-1 text-dim focus:outline-none focus:border-accent bg-white"
+                        onClick={e => e.stopPropagation()}
+                        title="Riassegna o rimuovi"
+                      >
+                        <option value="" disabled>Riassegna</option>
+                        <option value="__remove__">— Rimuovi assegnazione</option>
+                        {people.filter(p => p.id !== id && p.active).map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
                     </div>
                   )
                 })}

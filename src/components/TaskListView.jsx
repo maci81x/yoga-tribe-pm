@@ -49,88 +49,129 @@ export default function TaskListView({ tasks, subtasks, people, stages, onTaskCl
     return next
   })
 
+  if (sorted.length === 0) {
+    return <div className="text-sm text-faint text-center py-8">Nessuna attività</div>
+  }
+
   return (
-    <div className="bg-card rounded-xl border border-edge overflow-hidden">
-      <div className="grid grid-cols-[1fr_80px_120px_100px_80px_100px] gap-3 px-4 py-2.5 border-b border-edge bg-gray-50">
-        <SortHeader label="Titolo" field="title" sort={sort} onSort={handleSort} />
-        <SortHeader label="Avanzamento" field="sort_order" sort={sort} onSort={handleSort} />
-        <SortHeader label="Assegnatario" field="sort_order" sort={sort} onSort={handleSort} />
-        <SortHeader label="Scadenza" field="due_date" sort={sort} onSort={handleSort} />
-        <SortHeader label="Priorità" field="priority" sort={sort} onSort={handleSort} />
-        <SortHeader label="Stato" field="stage" sort={sort} onSort={handleSort} />
-      </div>
+    <>
+      {/* Mobile: card layout */}
+      <div className="sm:hidden space-y-2">
+        {sorted.map(task => {
+          const stage = stages.find(s => s.id === task.stage_id)
+          const assignee = people.find(p => p.id === task.assignee_id)
+          const taskSubs = subtasks.filter(s => s.task_id === task.id)
+          const doneSubs = taskSubs.filter(s => s.done).length
+          const subPct = taskSubs.length > 0 ? (doneSubs / taskSubs.length) * 100 : 0
+          const overdue = task.due_date && task.due_date < today && !stage?.is_done_stage
 
-      {sorted.length === 0 && (
-        <div className="text-sm text-faint text-center py-8">Nessuna attività</div>
-      )}
-
-      {sorted.map(task => {
-        const stage = stages.find(s => s.id === task.stage_id)
-        const assignee = people.find(p => p.id === task.assignee_id)
-        const taskSubs = subtasks.filter(s => s.task_id === task.id)
-        const doneSubs = taskSubs.filter(s => s.done).length
-        const subPct = taskSubs.length > 0 ? (doneSubs / taskSubs.length) * 100 : 0
-        const overdue = task.due_date && task.due_date < today && !stage?.is_done_stage
-        const isExpanded = expanded.has(task.id)
-
-        return (
-          <div key={task.id}>
+          return (
             <div
-              className="grid grid-cols-[1fr_80px_120px_100px_80px_100px] gap-3 px-4 py-3 border-b border-edge hover:bg-gray-50 cursor-pointer transition-colors"
+              key={task.id}
               onClick={() => onTaskClick(task)}
+              className="bg-card border border-edge rounded-xl px-4 py-3 cursor-pointer hover:shadow-sm transition-shadow"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                {taskSubs.length > 0 && (
-                  <button
-                    onPointerDown={e => e.stopPropagation()}
-                    onClick={e => { e.stopPropagation(); toggleExpand(task.id) }}
-                    className="text-faint hover:text-dim flex-shrink-0"
-                  >
-                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                )}
-                <span className="text-sm text-ink truncate">{task.title}</span>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <span className="text-sm font-medium text-ink leading-snug">{task.title}</span>
+                {stage && <div className="flex-shrink-0"><StageBadge stage={stage} /></div>}
               </div>
-
-              <div>
-                {taskSubs.length > 0 && <ProgressBar value={subPct} height={4} />}
-              </div>
-
-              <div>
+              <div className="flex items-center gap-3 flex-wrap">
                 {assignee && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <Avatar name={assignee.name} size="xs" />
-                    <span className="text-xs text-dim truncate">{assignee.name.split(' ')[0]}</span>
+                    <span className="text-xs text-dim">{assignee.name.split(' ')[0]}</span>
                   </div>
                 )}
-              </div>
-
-              <div>
                 {task.due_date && (
                   <span className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-dim'}`}>
                     {format(new Date(task.due_date + 'T00:00:00'), 'd MMM', { locale: it })}
                   </span>
                 )}
+                <PriorityBadge priority={task.priority} />
               </div>
-
-              <div><PriorityBadge priority={task.priority} /></div>
-
-              <div>{stage && <StageBadge stage={stage} />}</div>
+              {taskSubs.length > 0 && (
+                <div className="mt-2">
+                  <ProgressBar value={subPct} height={3} />
+                  <div className="text-[10px] text-faint mt-0.5">{doneSubs}/{taskSubs.length}</div>
+                </div>
+              )}
             </div>
+          )
+        })}
+      </div>
 
-            {isExpanded && taskSubs.length > 0 && (
-              <div className="px-8 py-2 bg-gray-50 border-b border-edge">
-                {taskSubs.map(sub => (
-                  <div key={sub.id} className="flex items-center gap-2 py-1 text-xs">
-                    <div className={`w-3 h-3 rounded-sm border flex-shrink-0 ${sub.done ? 'bg-accent border-accent' : 'border-gray-300'}`} />
-                    <span className={sub.done ? 'line-through text-faint' : 'text-dim'}>{sub.text}</span>
-                  </div>
-                ))}
+      {/* Desktop: table layout */}
+      <div className="hidden sm:block bg-card rounded-xl border border-edge overflow-hidden">
+        <div className="grid grid-cols-[1fr_80px_120px_100px_80px_100px] gap-3 px-4 py-2.5 border-b border-edge bg-gray-50">
+          <SortHeader label="Titolo" field="title" sort={sort} onSort={handleSort} />
+          <SortHeader label="Avanzamento" field="sort_order" sort={sort} onSort={handleSort} />
+          <SortHeader label="Assegnatario" field="sort_order" sort={sort} onSort={handleSort} />
+          <SortHeader label="Scadenza" field="due_date" sort={sort} onSort={handleSort} />
+          <SortHeader label="Priorità" field="priority" sort={sort} onSort={handleSort} />
+          <SortHeader label="Stato" field="stage" sort={sort} onSort={handleSort} />
+        </div>
+
+        {sorted.map(task => {
+          const stage = stages.find(s => s.id === task.stage_id)
+          const assignee = people.find(p => p.id === task.assignee_id)
+          const taskSubs = subtasks.filter(s => s.task_id === task.id)
+          const doneSubs = taskSubs.filter(s => s.done).length
+          const subPct = taskSubs.length > 0 ? (doneSubs / taskSubs.length) * 100 : 0
+          const overdue = task.due_date && task.due_date < today && !stage?.is_done_stage
+          const isExpanded = expanded.has(task.id)
+
+          return (
+            <div key={task.id}>
+              <div
+                className="grid grid-cols-[1fr_80px_120px_100px_80px_100px] gap-3 px-4 py-3 border-b border-edge hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => onTaskClick(task)}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {taskSubs.length > 0 && (
+                    <button
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={e => { e.stopPropagation(); toggleExpand(task.id) }}
+                      className="text-faint hover:text-dim flex-shrink-0"
+                    >
+                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  )}
+                  <span className="text-sm text-ink truncate">{task.title}</span>
+                </div>
+                <div>{taskSubs.length > 0 && <ProgressBar value={subPct} height={4} />}</div>
+                <div>
+                  {assignee && (
+                    <div className="flex items-center gap-1.5">
+                      <Avatar name={assignee.name} size="xs" />
+                      <span className="text-xs text-dim truncate">{assignee.name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  {task.due_date && (
+                    <span className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-dim'}`}>
+                      {format(new Date(task.due_date + 'T00:00:00'), 'd MMM', { locale: it })}
+                    </span>
+                  )}
+                </div>
+                <div><PriorityBadge priority={task.priority} /></div>
+                <div>{stage && <StageBadge stage={stage} />}</div>
               </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
+
+              {isExpanded && taskSubs.length > 0 && (
+                <div className="px-8 py-2 bg-gray-50 border-b border-edge">
+                  {taskSubs.map(sub => (
+                    <div key={sub.id} className="flex items-center gap-2 py-1 text-xs">
+                      <div className={`w-3 h-3 rounded-sm border flex-shrink-0 ${sub.done ? 'bg-accent border-accent' : 'border-gray-300'}`} />
+                      <span className={sub.done ? 'line-through text-faint' : 'text-dim'}>{sub.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }

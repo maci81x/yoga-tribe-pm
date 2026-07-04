@@ -48,5 +48,13 @@ export function useProjects() {
     return { error: err }
   }
 
-  return { projects, loading, error, reload: load, create, update, archive }
+  const remove = async (id) => {
+    const { error: err } = await trackSave(
+      supabase.from('yt_projects').delete().eq('id', id)
+    )
+    if (!err) setProjects(prev => prev.filter(p => p.id !== id))
+    return { error: err }
+  }
+
+  return { projects, loading, error, reload: load, create, update, archive, remove }
 }

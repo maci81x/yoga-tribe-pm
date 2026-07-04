@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { useProjects } from '../hooks/useProjects'
 import ProjectCard from './ProjectCard'
+import ProjectEditModal from './ProjectEditModal'
 import Avatar from './ui/Avatar'
 import Button from './ui/Button'
 import Modal from './ui/Modal'
@@ -71,11 +72,13 @@ function NewProjectModal({ open, onClose, onCreate }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { people, stages } = useApp()
-  const { projects, loading: projLoading, create: createProject } = useProjects()
+  const { projects, loading: projLoading, create: createProject, update: updateProject, remove: removeProject } = useProjects()
   const [taskStats, setTaskStats] = useState([])
   const [subtaskStats, setSubtaskStats] = useState([])
   const [statsLoading, setStatsLoading] = useState(true)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [editProjectOpen, setEditProjectOpen] = useState(false)
+  const [editProjectTarget, setEditProjectTarget] = useState(null)
 
   useEffect(() => {
     async function loadStats() {
@@ -140,6 +143,8 @@ export default function Dashboard() {
               tasks={taskStats}
               subtasks={subtaskStats}
               stages={stages}
+              onEdit={(proj) => { setEditProjectTarget(proj); setEditProjectOpen(true) }}
+              onDelete={(proj) => { setEditProjectTarget(proj); setEditProjectOpen(true) }}
             />
           ))}
         </div>
@@ -215,6 +220,13 @@ export default function Dashboard() {
       </div>
 
       <NewProjectModal open={newProjectOpen} onClose={() => setNewProjectOpen(false)} onCreate={createProject} />
+      <ProjectEditModal
+        open={editProjectOpen}
+        onClose={() => setEditProjectOpen(false)}
+        project={editProjectTarget}
+        onSave={(form) => updateProject(editProjectTarget.id, form)}
+        onDelete={async (id) => { await removeProject(id); setEditProjectOpen(false) }}
+      />
     </div>
   )
 }
