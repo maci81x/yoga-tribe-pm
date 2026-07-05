@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ChevronRight, Check, X } from 'lucide-react'
+import { ChevronRight, Check, X, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { exportCSV } from '../lib/exportUtils'
 import { useApp } from '../context/AppContext'
 import { useProjects } from '../hooks/useProjects'
 import Avatar from './ui/Avatar'
@@ -97,6 +98,28 @@ export default function PersonView() {
     setTasks(prev => prev.filter(t => t.id !== taskId))
   }
 
+  const handleExport = () => {
+    const stageMap = Object.fromEntries(stages.map(s => [s.id, s.name]))
+    const subMap = {}
+    subtasks.forEach(s => { if (!subMap[s.task_id]) subMap[s.task_id] = []; subMap[s.task_id].push(s) })
+    const rows = tasks.map(task => {
+      const subs = subMap[task.id] ?? []
+      const doneSubs = subs.filter(s => s.done).length
+      const proj = projects.find(p => p.id === task.project_id)
+      return {
+        'Progetto': proj ? `${proj.emoji} ${proj.name}` : '',
+        'Titolo': task.title,
+        'Stato': stageMap[task.stage_id] ?? '',
+        'Priorità': task.priority ?? '',
+        'Scadenza': task.due_date ?? '',
+        'Tag': task.tag ?? '',
+        'Progresso subtask (%)': subs.length > 0 ? Math.round((doneSubs / subs.length) * 100) : '',
+      }
+    })
+    const slug = person.name.toLowerCase().replace(/\s+/g, '-')
+    exportCSV(rows, `${slug}-attivita-${new Date().toISOString().split('T')[0]}.csv`)
+  }
+
   const reassignTask = async (taskId, newPersonId) => {
     await supabase.from('yt_tasks').update({ assignee_id: newPersonId || null }).eq('id', taskId)
     setTasks(prev => prev.filter(t => t.id !== taskId))
@@ -131,17 +154,26 @@ export default function PersonView() {
           </p>
           {person.email && <p className="text-xs text-faint mt-0.5">{person.email}</p>}
         </div>
-        <div className="flex gap-6 text-center">
-          <div>
-            <div className="text-2xl font-bold text-ink">{openTasks.length}</div>
-            <div className="text-xs text-faint">aperte</div>
-          </div>
-          {overdueTasks.length > 0 && (
+        <div className="flex flex-col items-end gap-3">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-edge rounded-lg text-dim hover:text-accent hover:border-accent transition-colors"
+            title="Esporta attività come CSV"
+          >
+            <Download size={12} /> Esporta CSV
+          </button>
+          <div className="flex gap-6 text-center">
             <div>
-              <div className="text-2xl font-bold text-red-500">{overdueTasks.length}</div>
-              <div className="text-xs text-faint">in ritardo</div>
+              <div className="text-2xl font-bold text-ink">{openTasks.length}</div>
+              <div className="text-xs text-faint">aperte</div>
             </div>
-          )}
+            {overdueTasks.length > 0 && (
+              <div>
+                <div className="text-2xl font-bold text-red-500">{overdueTasks.length}</div>
+                <div className="text-xs text-faint">in ritardo</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

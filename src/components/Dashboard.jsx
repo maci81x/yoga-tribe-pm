@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Clock, Ban, CheckCircle2, Plus } from 'lucide-react'
+import { AlertCircle, Clock, Ban, CheckCircle2, Plus, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
+import { exportXLSXMulti } from '../lib/exportUtils'
 import { useApp } from '../context/AppContext'
 import { useProjects } from '../hooks/useProjects'
 import ProjectCard from './ProjectCard'
@@ -79,12 +80,13 @@ export default function Dashboard() {
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [editProjectOpen, setEditProjectOpen] = useState(false)
   const [editProjectTarget, setEditProjectTarget] = useState(null)
+  const [exportingAll, setExportingAll] = useState(false)
 
   useEffect(() => {
     async function loadStats() {
       const [{ data: t }, { data: s }] = await Promise.all([
-        supabase.from('yt_tasks').select('id, title, project_id, stage_id, due_date, assignee_id'),
-        supabase.from('yt_subtasks').select('id, task_id, done'),
+        supabase.from('yt_tasks').select('id, title, project_id, stage_id, due_date, assignee_id, priority, tag'),
+        supabase.from('yt_subtasks').select('id, task_id, done, text'),
       ])
       setTaskStats(t ?? [])
       setSubtaskStats(s ?? [])
@@ -114,13 +116,103 @@ export default function Dashboard() {
   const overdueUpcoming = overdueTasks.sort((a, b) => a.due_date.localeCompare(b.due_date)).slice(0, 5)
   const upcomingWithOverdue = [...overdueUpcoming, ...upcoming].slice(0, 12)
 
+  const handleExportAll = async () => {
+    setExportingAll(true)
+    try {
+      const stageMap = Object.fromEntries(stages.map(s => [s.id, s.name]))
+      const peopleMap = Object.fromEntries(people.map(p => [p.id, p.name]))
+      const subMap = {}
+      subtaskStats.forEach(s => { if (!subMap[s.task_id]) subMap[s.task_id] = []; subMap[s.task_id].push(s) })
+
+      // Foglio 1 — Riepilogo
+      const riepilogoRows = projects.map(proj => {
+        const pt = taskStats.filter(t => t.project_id === proj.id)
+        const ps = subtaskStats.filter(s => pt.some(t => t.id === s.task_id))
+        const donePt = pt.filter(t => doneStageIds.has(t.stage_id)).length
+        const donePs = ps.filter(s => s.done).length
+        const total = pt.length + ps.length
+        const pct = total > 0 ? Math.round(((donePt + donePs) / total) * 100) : 0
+        const overdue = pt.filter(t => !doneStageIds.has(t.stage_id) && t.due_date && t.due_date < today).length
+        const blocked = pt.filter(t => blockedStageIds.has(t.stage_id)).length
+        return {
+          'Progetto': `${proj.emoji} ${proj.name}`,
+          'Totale attività': pt.length,
+          'Completate': donePt,
+          'In ritardo': overdue,
+          'Bloccate': blocked,
+          '% avanzamento': pct,
+        }
+      })
+
+      // Foglio 2 — Tutte le attività
+      const tutteRows = taskStats.map(task => {
+        const proj = projects.find(p => p.id === task.project_id)
+        const subs = subMap[task.id] ?? []
+        const doneSubs = subs.filter(s => s.done).length
+        return {
+          'Progetto': proj ? `${proj.emoji} ${proj.name}` : '',
+          'Titolo': task.title,
+          'Stato': stageMap[task.stage_id] ?? '',
+          'Priorità': task.priority ?? '',
+          'Assegnatario': task.assignee_id ? (peopleMap[task.assignee_id] ?? '') : '',
+          'Scadenza': task.due_date ?? '',
+          'Tag': task.tag ?? '',
+          '% subtask': subs.length > 0 ? Math.round((doneSubs / subs.length) * 100) : '',
+        }
+      })
+
+      // Foglio 3 — Persone
+      const personeRows = people.filter(p => p.active).map(p => {
+        const assigned = taskStats.filter(t => t.assignee_id === p.id)
+        const overdue = assigned.filter(t => !doneStageIds.has(t.stage_id) && t.due_date && t.due_date < today).length
+        return {
+          'Nome': p.name,
+          'Ruolo': p.role ?? '',
+          'Email': p.email ?? '',
+          'Attività assegnate': assigned.length,
+          'Attività in ritardo': overdue,
+        }
+      })
+
+      // Foglio 4 — Contatti strategia
+      const { data: contacts } = await supabase.from('yt_strategy_notes').select('*').eq('category', 'contatto')
+      const contattiRows = (contacts ?? []).map(c => {
+        const proj = projects.find(p => p.id === c.project_id)
+        return {
+          'Progetto': proj ? `${proj.emoji} ${proj.name}` : '',
+          'Nome': c.title,
+          'Ruolo': c.contact_role ?? '',
+          'Struttura': c.contact_structure ?? '',
+          'Email': c.contact_email ?? '',
+          'Telefono': c.contact_phone ?? '',
+          'Note': c.content ?? '',
+        }
+      })
+
+      const dateStr = new Date().toISOString().split('T')[0]
+      exportXLSXMulti([
+        { name: 'Riepilogo', rows: riepilogoRows },
+        { name: 'Tutte le attività', rows: tutteRows },
+        { name: 'Persone', rows: personeRows },
+        { name: 'Contatti strategia', rows: contattiRows },
+      ], `yoga-tribe-export-${dateStr}.xlsx`)
+    } finally {
+      setExportingAll(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-ink">Progetti</h1>
-        <Button variant="accent" size="sm" onClick={() => setNewProjectOpen(true)}>
-          <Plus size={14} /> Nuovo progetto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={handleExportAll} disabled={exportingAll}>
+            <Download size={14} /> {exportingAll ? 'Esportazione...' : 'Esporta tutto'}
+          </Button>
+          <Button variant="accent" size="sm" onClick={() => setNewProjectOpen(true)}>
+            <Plus size={14} /> Nuovo progetto
+          </Button>
+        </div>
       </div>
 
       {!statsLoading && (
